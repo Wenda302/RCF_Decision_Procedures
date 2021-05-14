@@ -125,6 +125,49 @@ next
   thus ?thesis using that[of "(mr+ub)/2"] \<open>mr<ub\<close> by auto
 qed
 
+section\<open>Sign\<close>
+
+definition sign:: "'a::{zero,linorder} \<Rightarrow> 'b::linordered_idom" where
+  "sign x\<equiv>(if x>0 then 1 else if x=0 then 0 else -1)"
+
+lemma sign_simps[simp]:
+  "x>0 \<Longrightarrow> sign x=1"
+  "x=0 \<Longrightarrow> sign x=0"
+  "x<0 \<Longrightarrow> sign x=-1"
+unfolding sign_def by auto
+
+lemma sign_cases [case_names neg zero pos]:
+  "(sign x = -1 \<Longrightarrow> P) \<Longrightarrow> (sign x = 0 \<Longrightarrow> P) \<Longrightarrow> (sign x =1 \<Longrightarrow> P) \<Longrightarrow> P"  
+unfolding Sturm_Tarski.sign_def by argo   
+
+lemma sign_times:
+  fixes x::"'a::linordered_ring_strict"
+  shows "sign (x*y) = sign x * sign y"
+  unfolding Sturm_Tarski.sign_def 
+  by (auto simp add:zero_less_mult_iff)
+   
+lemma sign_power:
+  fixes x::"'a::linordered_idom"
+  shows "sign (x^n) = (if n=0 then 1 else if even n then \<bar>sign x\<bar> else sign x)"
+  by (simp add: Sturm_Tarski.sign_def zero_less_power_eq)
+
+(*
+lemma sgn_sign_eq:
+  fixes x::"'a::{linordered_idom}"
+  shows "sgn x = of_int (sign x)" 
+  unfolding sgn_if by auto
+*)
+
+lemma sgn_sign_eq:"sgn = sign"
+  unfolding sign_def sgn_if by auto
+
+lemma sign_sgn[simp]: "sign (sgn x) = sign (x::'b::linordered_idom)"
+  by (simp add: sign_def)
+
+lemma sign_uminus[simp]:"sign (- x) = - sign (x::'b::linordered_idom)"
+  by (simp add: sign_def)
+
+
 section\<open>Bound of polynomials\<close>
 
 definition sgn_pos_inf :: "('a ::linordered_idom) poly \<Rightarrow> 'a" where 
@@ -257,37 +300,6 @@ proof -
     by (metis (poly_guards_query) less_not_sym min_less_iff_conj neq_iff)
   thus ?thesis using that[of lb] lb2 lb_def by auto
 qed
-
-section\<open>Sign\<close>
-
-definition sign:: "'a::{zero,linorder} \<Rightarrow> int" where
-  "sign x\<equiv>(if x>0 then 1 else if x=0 then 0 else -1)"
-
-lemma sign_simps[simp]:
-  "x>0 \<Longrightarrow> sign x=1"
-  "x=0 \<Longrightarrow> sign x=0"
-  "x<0 \<Longrightarrow> sign x=-1"
-unfolding sign_def by auto
-
-lemma sign_cases [case_names neg zero pos]:
-  "(sign x = -1 \<Longrightarrow> P) \<Longrightarrow> (sign x = 0 \<Longrightarrow> P) \<Longrightarrow> (sign x =1 \<Longrightarrow> P) \<Longrightarrow> P"  
-unfolding Sturm_Tarski.sign_def by argo   
-
-lemma sign_times:
-  fixes x::"'a::linordered_ring_strict"
-  shows "sign (x*y) = sign x * sign y"
-  unfolding Sturm_Tarski.sign_def 
-  by (auto simp add:zero_less_mult_iff)
-   
-lemma sign_power:
-  fixes x::"'a::linordered_idom"
-  shows "sign (x^n) = (if n=0 then 1 else if even n then \<bar>sign x\<bar> else sign x)"
-  by (simp add: Sturm_Tarski.sign_def zero_less_power_eq)
-    
-lemma sgn_sign_eq:
-  fixes x::"'a::{linordered_idom}"
-  shows "sgn x = of_int (sign x)" 
-  unfolding sgn_if by auto
 
 section \<open>Variation and cross\<close>
 
@@ -1258,18 +1270,22 @@ fun changes:: "('a ::linordered_idom) list \<Rightarrow> int" where
 lemma changes_map_sgn_eq:
   "changes xs = changes (map sgn xs)"
 proof (induct xs rule:changes.induct)
-  case 1
-  show ?case by simp
-next
-  case 2
-  show ?case by simp
-next
   case (3 x1 x2 xs)
   moreover have "x1*x2<0 \<longleftrightarrow> sgn x1 * sgn x2 < 0" 
     by (unfold mult_less_0_iff sgn_less sgn_greater,simp)
   moreover have "x2=0 \<longleftrightarrow> sgn x2 =0" by (rule sgn_0_0[symmetric])
   ultimately show ?case by auto
-qed
+qed simp_all
+
+lemma changes_map_sign_eq:
+  "changes xs = changes (map sign xs)"
+proof (induct xs rule:changes.induct)
+  case (3 x1 x2 xs)
+  moreover have "x1*x2<0 \<longleftrightarrow> sign x1 * sign x2 < 0" 
+    by (simp add: mult_less_0_iff sign_def)
+  moreover have "x2=0 \<longleftrightarrow> sign x2 =0" by (simp add: sign_def)
+  ultimately show ?case by auto
+qed simp_all
 
 definition changes_poly_at::"('a ::linordered_idom) poly list \<Rightarrow> 'a \<Rightarrow> int" where
   "changes_poly_at ps a= changes (map (\<lambda>p. poly p a) ps)" 
