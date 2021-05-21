@@ -1,6 +1,6 @@
 theory Float_Misc imports 
   Main
-  "~~/src/HOL/Library/Float"
+  "HOL-Library.Float"
 begin
 
 definition rat_of_float::"float \<Rightarrow> rat" where 

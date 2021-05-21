@@ -385,6 +385,9 @@ begin
 lemma sgn_sign:"sgn (hom x) = sign x"
   by (simp add: sign_def hom_less sgn_if)
 
+lemma sign_hom[simp]: "sign (hom x) = sign x"
+  by (simp add: hom_less sign_def)
+
 end
              
 locale hom_pseudo_smods= comm_semiring_hom hom 
