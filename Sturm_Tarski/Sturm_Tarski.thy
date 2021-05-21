@@ -167,6 +167,9 @@ lemma sign_sgn[simp]: "sign (sgn x) = sign (x::'b::linordered_idom)"
 lemma sign_uminus[simp]:"sign (- x) = - sign (x::'b::linordered_idom)"
   by (simp add: sign_def)
 
+lemma sign_of_rat[simp]:
+  "sign ((of_rat x):: 'a :: linordered_field)  = sign x"
+  unfolding sign_def by simp
 
 section\<open>Bound of polynomials\<close>
 
