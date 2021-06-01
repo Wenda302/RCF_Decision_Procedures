@@ -1,8 +1,18 @@
 theory Float_Misc imports 
   Main
   "HOL-Library.Float"
-  "Affine_Arithmetic.Float_Real"
+  "Affine_Arithmetic.Optimize_Float"
 begin
+
+abbreviation
+  float_of_nat :: "nat \<Rightarrow> float"
+where
+  "float_of_nat \<equiv> of_nat"
+
+abbreviation
+  float_of_int :: "int \<Rightarrow> float"
+where
+  "float_of_int \<equiv> of_int"
 
 definition rat_of_float::"float \<Rightarrow> rat" where 
   "rat_of_float f = (let e=exponent f;m=mantissa f in 

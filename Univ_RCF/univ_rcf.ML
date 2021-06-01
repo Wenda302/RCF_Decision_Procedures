@@ -99,21 +99,30 @@ fun poly_to_str p = let
     | poly_to_str' t _ = raise TERM ("poly_to_str", [t]);
   in poly_to_str' p 0 end;
 
-fun norm_num2_to_str (Const ("RCF_Decision_Proc.norm_num2.Pol", _ ) 
+(*
+fun norm_num2_to_str (Const ("Univ_RCF_Reification.norm_num2.Pol", _ ) 
       $ ((Const ("RealAlg_Imp.int_poly", _) $ t)) $ _) =poly_to_str t
-   | norm_num2_to_str (Const ("RCF_Decision_Proc.norm_num2.Const", _ ) $ t ) = rat_to_str t
+   | norm_num2_to_str (Const ("Univ_RCF_Reification.norm_num2.Const", _ ) $ t ) = rat_to_str t
+   | norm_num2_to_str t= 
+      let val _ = @{print} t in raise TERM ("norm_num2_to_str",[t]) end;
+*)
+
+fun norm_num2_to_str (Const ("Univ_RCF_Reification.norm_num2.Pol", _ ) 
+      $ (t) $ _) =poly_to_str t
+   | norm_num2_to_str (Const ("Univ_RCF_Reification.norm_num2.Const", _ ) $ t ) = rat_to_str t
    | norm_num2_to_str t= 
       let val _ = @{print} t in raise TERM ("norm_num2_to_str",[t]) end;
 
-fun qf_form_to_str (Const ("RCF_Decision_Proc.qf_form2.Disj", _ ) $ t $ u) =
+
+fun qf_form_to_str (Const ("Univ_RCF_Reification.qf_form2.Disj", _ ) $ t $ u) =
      "(" ^ qf_form_to_str t ^ "||" ^ qf_form_to_str u ^ ")"
-    | qf_form_to_str (Const ("RCF_Decision_Proc.qf_form2.Conj", _ ) $ t $ u) =
+    | qf_form_to_str (Const ("Univ_RCF_Reification.qf_form2.Conj", _ ) $ t $ u) =
      "(" ^ qf_form_to_str t ^ "&&" ^ qf_form_to_str u ^ ")"
-    | qf_form_to_str (Const ("RCF_Decision_Proc.qf_form2.Neg", _ ) $ t ) =
+    | qf_form_to_str (Const ("Univ_RCF_Reification.qf_form2.Neg", _ ) $ t ) =
      "!(" ^ qf_form_to_str t ^ ")"
-    | qf_form_to_str (Const ("RCF_Decision_Proc.qf_form2.Pos", _ ) $ t ) =
+    | qf_form_to_str (Const ("Univ_RCF_Reification.qf_form2.Pos", _ ) $ t ) =
      "(" ^ norm_num2_to_str t ^ ">0)"
-    | qf_form_to_str (Const ("RCF_Decision_Proc.qf_form2.Zero", _ ) $ t ) =
+    | qf_form_to_str (Const ("Univ_RCF_Reification.qf_form2.Zero", _ ) $ t ) =
      "(" ^ norm_num2_to_str t ^ "==0)"
     | qf_form_to_str t = raise TERM ("qf_form_to_str",[t]);
 
@@ -129,26 +138,30 @@ fun norm_form_to_str (Const ("RCF_Decision_Proc.norm_form.AllQ", _ ) $ t) =
 *)
 
 (*norm_form2 \<Rightarrow> (poly) list*)
-fun extract_polys (Const ("RCF_Decision_Proc.norm_form2.AllQ", _) $ t) = extract_polys t 
-  | extract_polys (Const ("RCF_Decision_Proc.norm_form2.ExQ", _) $ t) = extract_polys t
-  | extract_polys (Const ("RCF_Decision_Proc.norm_form2.QF", _) $ t) = extract_polys t 
-  | extract_polys (Const ("RCF_Decision_Proc.qf_form2.Disj", _) $ t $ u) 
-      = extract_polys t @ extract_polys u
-  | extract_polys (Const ("RCF_Decision_Proc.qf_form2.Conj", _) $ t $ u) 
-      = extract_polys t @ extract_polys u
-  | extract_polys (Const ("RCF_Decision_Proc.qf_form2.Pos", _) $ t) = extract_polys t 
-  | extract_polys (Const ("RCF_Decision_Proc.qf_form2.Zero", _) $ t) = extract_polys t 
-  | extract_polys (Const ("RCF_Decision_Proc.qf_form2.Neg", _) $ t) = extract_polys t 
-  | extract_polys (Const ("RCF_Decision_Proc.norm_num2.Pol", _) $ t $ _) = extract_polys t 
-  | extract_polys (Const ("RealAlg_Imp.int_poly", _) $ t) = [t];
 
+fun extract_polys (Const ("Univ_RCF_Reification.norm_form2.AllQ", _) $ t) = extract_polys t 
+  | extract_polys (Const ("Univ_RCF_Reification.norm_form2.ExQ", _) $ t) = extract_polys t
+  | extract_polys (Const ("Univ_RCF_Reification.norm_form2.QF", _) $ t) = extract_polys t 
+  | extract_polys (Const ("Univ_RCF_Reification.qf_form2.Disj", _) $ t $ u) 
+      = extract_polys t @ extract_polys u
+  | extract_polys (Const ("Univ_RCF_Reification.qf_form2.Conj", _) $ t $ u) 
+      = extract_polys t @ extract_polys u
+  | extract_polys (Const ("Univ_RCF_Reification.qf_form2.Pos", _) $ t) = extract_polys t 
+  | extract_polys (Const ("Univ_RCF_Reification.qf_form2.Zero", _) $ t) = extract_polys t 
+  | extract_polys (Const ("Univ_RCF_Reification.qf_form2.Neg", _) $ t) = extract_polys t 
+  | extract_polys (Const ("Univ_RCF_Reification.norm_num2.Pol", _) $ t $ _) = extract_polys t
+  | extract_polys t = [t];
+
+(* 
+  | extract_polys (Const ("RealAlg_Imp.int_poly", _) $ t) = [t];
+*)
 
 fun runMathematica extential ctxt formula =
   (if extential then 
      let 
         val qf_str= (case formula of 
-            (Const ("RCF_Decision_Proc.norm_form2.ExQ", _) 
-              $ (Const ("RCF_Decision_Proc.norm_form2.QF", _) $ t)) => qf_form_to_str t);
+            (Const ("Univ_RCF_Reification.norm_form2.ExQ", _) 
+              $ (Const ("Univ_RCF_Reification.norm_form2.QF", _) $ t)) => qf_form_to_str t);
         val cmd="getInstance["^qf_str^"]//FullForm";
         val _ = writeln ("Command to Mathematica: "^cmd );
         val result = execute_MathKernel_print cmd;
@@ -225,7 +238,7 @@ fun univ_rcf_cert ctxt (cert:term) =
       @{thms num_interp_eqs form_interp.simps} 
       NONE 
     THEN' 
-      simp_tac (ctxt delsimps @{thms norm_form2_interp.simps} addsimps @{thms power_numeral_even power_numeral_odd})
+      efficient_norm_tac ctxt
     THEN'
       CSUBGOAL (fn (ctrm,i) => 
         let (*val _ = cert' |> HOLogic.dest_list |> hd 
@@ -236,8 +249,8 @@ fun univ_rcf_cert ctxt (cert:term) =
              val _ = @{print} ctrm
           in
         (case (ctrm |> Thm.dest_arg |> Thm.dest_arg1 |> Thm.term_of) of
-          Const ("RCF_Decision_Proc.norm_form2.ExQ",_) $ _ => existential_case_tac ctxt cert'  
-         | Const ("RCF_Decision_Proc.norm_form2.AllQ",_) $ _ => universal_case_tac ctxt cert' 
+          Const ("Univ_RCF_Reification.norm_form2.ExQ",_) $ _ => existential_case_tac ctxt cert'  
+         | Const ("Univ_RCF_Reification.norm_form2.AllQ",_) $ _ => universal_case_tac ctxt cert' 
         )
         end
         )
@@ -250,14 +263,14 @@ fun univ_rcf ctxt  =
       @{thms num_interp_eqs form_interp.simps} 
       NONE 
   THEN' 
-    simp_tac (ctxt delsimps @{thms norm_form2_interp.simps} addsimps @{thms power_numeral_even power_numeral_odd})
+    efficient_norm_tac ctxt
   THEN'
     CSUBGOAL (fn (p, i) =>
       let 
         val formula = p |> Thm.dest_arg |> Thm.dest_arg1 |> Thm.term_of;
         val existential = (case formula of 
-          Const ("RCF_Decision_Proc.norm_form2.ExQ",_) $ _ =>  true 
-         | Const ("RCF_Decision_Proc.norm_form2.AllQ",_) $ _ => false) ;
+          Const ("Univ_RCF_Reification.norm_form2.ExQ",_) $ _ =>  true 
+         | Const ("Univ_RCF_Reification.norm_form2.AllQ",_) $ _ => false) ;
         (*val _ = writeln "Porting the following formula to MetiTarski:";*)
         (*val _ = formula |> norm_form_to_str |> writeln; *)
         val cert = runMathematica existential ctxt formula;

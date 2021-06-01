@@ -6,6 +6,7 @@ section \<open>TaQ for polynomials with rational coefficients\<close>
 
 global_interpretation rat_int:hom_pseudo_smods rat_of_int real_of_int real_of_rat
   defines 
+    ri_changes_hpoly_at  = rat_int.changes_hpoly_at and
     ri_changes_itv_spmods = rat_int.changes_itv_spmods and
     ri_changes_gt_spmods = rat_int.changes_gt_spmods and
     ri_changes_le_spmods = rat_int.changes_le_spmods and

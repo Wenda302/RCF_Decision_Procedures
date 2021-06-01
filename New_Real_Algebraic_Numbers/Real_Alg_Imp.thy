@@ -1,6 +1,7 @@
 theory Real_Alg_Imp imports 
   Complex_Main
   "../Sturm_Tarski/Pseudo_Remainder_Sequence"
+  
   Float_Misc
 begin
 
@@ -299,6 +300,7 @@ definition valid_alg::"int poly \<Rightarrow> float \<Rightarrow> float \<Righta
 
 global_interpretation float_int:hom_pseudo_smods float_of_int real_of_int real_of_float
   defines 
+    fi_changes_hpoly_at  = float_int.changes_hpoly_at and
     fi_changes_itv_spmods = float_int.changes_itv_spmods and
     fi_changes_gt_spmods = float_int.changes_gt_spmods and
     fi_changes_le_spmods = float_int.changes_le_spmods and
@@ -321,7 +323,7 @@ lemma [code]:"valid_alg p lb ub = (lb<ub
 section \<open>Representation of a real algebraic number\<close>
 
 definition Alg:: "int poly \<Rightarrow> float \<Rightarrow> float \<Rightarrow> real" where
-  "Alg p lb ub = (if valid_alg p lb ub
+  [code del]:"Alg p lb ub = (if valid_alg p lb ub
                     then Real (to_cauchy (map_poly of_int p,rat_of_float lb,rat_of_float ub))
                     else undefined)"
 
@@ -397,80 +399,179 @@ next
 qed
 
 datatype alg_imp =
-    Ratalg rat
-  | Floatalg float
-  | Polyalg "int poly" float float  
+     Floatalg float
+   | Ratalg rat float float
+   | Polyalg "int poly" float float  
+
+(*
+datatype A = A1 int | A2 rat
+datatype B = A | B1 real
+
+term B1
+
+fun f::"B \<Rightarrow> int" where
+  "f (B1 a) = 1"
+| "f ((A1 _)::B) = 0"
+*)
 
 fun real_of_alg_imp :: "alg_imp \<Rightarrow> real" where
-  "real_of_alg_imp (Ratalg r) = (Ratreal r)"|
+  "real_of_alg_imp (Ratalg r _ _) = (Ratreal r)"|
   "real_of_alg_imp (Floatalg f) = real_of_float f"|
   "real_of_alg_imp (Polyalg p lb ub) = Alg p lb ub"
 
-section \<open>Univariate sign determination procedure\<close>
+definition valid_Ratalg:: "rat \<Rightarrow> float \<Rightarrow> float \<Rightarrow> bool" where
+  "valid_Ratalg r lb ub = (lb < of_rat r \<and> of_rat r < ub)"
 
-definition sign_int_coeffs_at :: "int poly \<Rightarrow> alg_imp \<Rightarrow> int" where 
-  "sign_int_coeffs_at q x = sign (eval_poly of_int q (real_of_alg_imp x))"
+fun valid_alg_imp :: "alg_imp \<Rightarrow> bool" where 
+  "valid_alg_imp (Ratalg r lb ub) = valid_Ratalg r lb ub"
+| "valid_alg_imp (Floatalg _ ) = True "
+| "valid_alg_imp (Polyalg p lb ub) = valid_alg p lb ub" 
 
-lemma sign_int_coeffs_at_Ratalg[code]: 
-  "sign_int_coeffs_at q (Ratalg x) = sign (eval_poly rat_of_int q x)" (is "?L=?R")
+section \<open>A number between and upper/lower bounds of real algebraic numbers\<close>
+
+definition mid_fl::"float \<Rightarrow> float \<Rightarrow> float" where
+  "mid_fl a b = (a+b)*Float 1 (- 1)"
+
+lemma mid_fl_strict_between[intro]:
+  assumes "a<b" 
+  shows "a < mid_fl a b" "mid_fl a b < b"
+  using assms unfolding mid_fl_def by (auto simp:powr_neg_one)
+
+fun btw_alg :: "alg_imp \<Rightarrow> alg_imp \<Rightarrow> alg_imp" where
+   "btw_alg (Ratalg _ _ ub1) (Ratalg r2 lb2 _) = Floatalg (mid_fl ub1 lb2)"
+ | "btw_alg (Ratalg _ _ ub1) (Floatalg f) = Floatalg (mid_fl ub1 f)"
+ | "btw_alg (Ratalg _ _ ub1) (Polyalg p lb2 _) = Floatalg (mid_fl ub1 lb2)"
+ | "btw_alg (Floatalg f) (Ratalg r2 lb2 _) = Floatalg (mid_fl f lb2)"
+ | "btw_alg (Floatalg f1) (Floatalg f2) = Floatalg (mid_fl f1 f2)"
+ | "btw_alg (Floatalg f) (Polyalg p lb2 _) = Floatalg (mid_fl f lb2)"
+ | "btw_alg (Polyalg _ _ ub1) (Ratalg r2 lb2 _) = Floatalg (mid_fl ub1 lb2)"
+ | "btw_alg (Polyalg _ _ ub1) (Floatalg f) = Floatalg (mid_fl ub1 f)"
+ | "btw_alg (Polyalg _ _ ub1) (Polyalg p lb2 _) = Floatalg (mid_fl ub1 lb2)"
+
+fun strict_less_alg_imp :: "alg_imp \<Rightarrow> alg_imp \<Rightarrow> bool" where
+   "strict_less_alg_imp (Ratalg _ _ ub1) (Ratalg _ lb2 _) = (ub1 < lb2)"
+ | "strict_less_alg_imp (Ratalg _ _ ub1) (Floatalg f) = (ub1 < f)"
+ | "strict_less_alg_imp (Ratalg _ _ ub1) (Polyalg p lb2 _) = (ub1 < lb2)"
+ | "strict_less_alg_imp (Floatalg f) (Ratalg r2 lb2 _) = (f < lb2)"
+ | "strict_less_alg_imp (Floatalg f1) (Floatalg f2) = (f1 < f2)"
+ | "strict_less_alg_imp (Floatalg f) (Polyalg p lb2 _) = (f < lb2)"
+ | "strict_less_alg_imp (Polyalg _ _ ub1) (Ratalg r2 lb2 _) = (ub1 < lb2)"
+ | "strict_less_alg_imp (Polyalg _ _ ub1) (Floatalg f) = (ub1 < f)"
+ | "strict_less_alg_imp (Polyalg _ _ ub1) (Polyalg p lb2 _) = (ub1 < lb2)"
+
+lemma alg_imp_less:
+  assumes "valid_alg_imp a" "valid_alg_imp b" "strict_less_alg_imp a b"
+  shows "real_of_alg_imp a < real_of_alg_imp b"
+  using assms 
+  apply (cases a;cases b)
+  apply (auto simp:valid_Ratalg_def dest:alg_bound_and_root)
+  using alg_bound_and_root(1) alg_bound_and_root(2) by fastforce
+
+lemma btw_alg_between:
+  assumes "valid_alg_imp a" "valid_alg_imp b" "strict_less_alg_imp a b"
+  shows "real_of_alg_imp a < real_of_alg_imp (btw_alg a b)" 
+        "real_of_alg_imp (btw_alg a b) < real_of_alg_imp b"
 proof -
-  have "?R = sign (real_of_rat (eval_poly rat_of_int q x))"
-    by simp
-  also have "... = sign (poly (of_int_poly q) (real_of_rat x))"
-    unfolding eval_poly_def
-    by (simp flip:of_rat_hom.poly_map_poly add:map_poly_map_poly comp_def)
-  also have "... = ?L"
-    unfolding sign_int_coeffs_at_def eval_poly_def by simp
-  finally show ?thesis by simp
+  show "real_of_alg_imp a < real_of_alg_imp (btw_alg a b)" 
+  proof (cases a)
+    case (Floatalg f)
+    then show ?thesis 
+      using assms
+      by (cases b) (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+  next
+    case (Ratalg r1 lb1 ub1)
+    then have "real_of_alg_imp a = real_of_rat r1" by auto
+    also have "... < ub1"
+      using Ratalg assms(1) valid_Ratalg_def valid_alg_imp.simps(1) by blast
+    also have "... < real_of_alg_imp (btw_alg a b)"
+      using Ratalg assms
+      by (cases b) (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+    finally show ?thesis .
+  next
+    case (Polyalg p1 lb1 ub1)
+    then have  "real_of_alg_imp a < ub1" 
+      using alg_bound_and_root(2) assms(1) by force
+    also have "... < real_of_alg_imp (btw_alg a b)"
+      using Polyalg assms
+      by (cases b) (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+    finally show ?thesis .
+  qed
+    
+  show "real_of_alg_imp (btw_alg a b) < real_of_alg_imp b"
+  proof (cases b)
+    case (Floatalg f)
+    then show ?thesis 
+      using assms
+      by (cases a) (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+  next
+    case (Ratalg r1 lb1 ub1)
+    then have "real_of_alg_imp (btw_alg a b) < lb1"
+      using assms
+      by (cases a)  (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+    also have "... < real_of_alg_imp b"
+      using Ratalg assms(2) valid_Ratalg_def by auto
+    finally show ?thesis .
+  next
+    case (Polyalg p1 lb1 ub1)
+    then have "real_of_alg_imp (btw_alg a b) < lb1"
+      using assms
+      by (cases a) (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+    also have "... < real_of_alg_imp b"
+      using Polyalg alg_bound_and_root(1) assms(2) by auto
+    finally show ?thesis .
+  qed
 qed
 
-lemma sign_int_coeffs_at_Polyalg[code]: 
-  "sign_int_coeffs_at q (Polyalg p lb ub) = ( 
-    if valid_alg p lb ub then 
-      fi_changes_itv_spmods lb ub p (pderiv p * q)
-    else Code.abort (STR ''Invalid sgn_at'') 
-        (\<lambda>_. sign_int_coeffs_at q (Polyalg p lb ub))
-    )"
-proof (cases "valid_alg p lb ub")
-  case True
-  let ?ip = "of_int_poly p" and ?iq="of_int_poly q"
+lemma btw_alg_imp_between:
+  assumes "strict_less_alg_imp a b"
+  shows "strict_less_alg_imp a (btw_alg a b)" 
+        "strict_less_alg_imp (btw_alg a b) b"
+  subgoal using assms
+    by (cases a;cases b) (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+  subgoal using assms
+    by (cases a;cases b) (auto simp flip:float_int.r2.hom_less simp del:less_float.rep_eq)
+  done
 
-  have "sign_int_coeffs_at q (Polyalg p lb ub) = taq {Alg p lb ub} (of_int_poly q)"
-    unfolding sign_int_coeffs_at_def by (simp add:eval_poly_def taq_def)
-  also have "... = taq {x::real. poly ?ip x = 0 \<and> lb < x \<and> x < ub} ?iq"
-  proof -
-    have "{Alg p lb ub} = {x. poly ?ip x = 0 \<and> lb < x \<and> x < ub}"
-      using alg_bound_and_root[OF True]  alg_eq[OF True]
-      by safe meson
-    then show ?thesis by simp
-  qed
-  also have "... = changes_itv_smods (real_of_float lb) (real_of_float ub) (of_int_poly p)
-     (pderiv (of_int_poly p) * of_int_poly q)"
-    apply (rule sturm_tarski_interval)
-    using True unfolding valid_alg_def 
-    by (auto simp add: float_int.map_poly_R_hom_commute)
-  also have "... = changes_itv_smods (real_of_float lb) (real_of_float ub) (of_int_poly p)
-     (of_int_poly ((pderiv p) *  q))"
-    by (simp add: of_int_hom.map_poly_pderiv of_int_poly_hom.hom_mult)
-  also have "... = fi_changes_itv_spmods lb ub p (pderiv p * q)"
-    using float_int.changes_spmods_smods(1) by simp
-  finally have "sign_int_coeffs_at q (Polyalg p lb ub) 
-      = fi_changes_itv_spmods lb ub p (pderiv p * q)" .
-  then show ?thesis using True by auto
-qed auto
+lemma valid_btw_alg:
+  assumes "valid_alg_imp a" "valid_alg_imp b"
+  shows "valid_alg_imp (btw_alg a b)"
+  using assms by (cases a;cases b) auto
 
-lemma sign_int_coeffs_at_Floatalg[code]: 
-  "sign_int_coeffs_at q (Floatalg f) = sign (eval_poly float_of_int q f) "  (is "?L=?R")
-proof -
-  have "?R = sign (real_of_float (eval_poly float_of_int q f))"
-    by simp
-  also have "... = sign (poly (of_int_poly q) (real_of_float f))"
-    unfolding eval_poly_def
-    using float_int.map_poly_R_hom_commute by presburger
-  also have "... = ?L"
-    unfolding sign_int_coeffs_at_def eval_poly_def by simp
-  finally show ?thesis by simp
-qed  
+fun upper_alg :: "alg_imp \<Rightarrow> alg_imp" where 
+  "upper_alg (Ratalg _ _ ub1) = Floatalg (ub1+1)"
+| "upper_alg (Floatalg f) = Floatalg (f+1)"
+| "upper_alg (Polyalg _ _ ub1) = Floatalg (ub1+1)"
+
+fun lower_alg :: "alg_imp \<Rightarrow> alg_imp" where 
+  "lower_alg (Ratalg _ lb1 _) = Floatalg (lb1 - 1)"
+| "lower_alg (Floatalg f) = Floatalg (f-1)"
+| "lower_alg (Polyalg _ lb1 _) = Floatalg (lb1 - 1)"
+
+lemma valid_upper_alg:"valid_alg_imp x \<Longrightarrow> valid_alg_imp (upper_alg x)"
+  by (cases x) auto
+
+lemma valid_lower_alg:"valid_alg_imp x \<Longrightarrow> valid_alg_imp (lower_alg x)"
+  by (cases x) auto
+
+lemma upper_alg_less_imp:"valid_alg_imp x 
+        \<Longrightarrow> strict_less_alg_imp x (upper_alg x)"
+  by (cases x) auto
+
+lemma lower_alg_less_imp:"valid_alg_imp x 
+        \<Longrightarrow> strict_less_alg_imp (lower_alg x) x"
+  by (cases x) auto
+
+lemma upper_alg_less:"valid_alg_imp x 
+        \<Longrightarrow> real_of_alg_imp x < real_of_alg_imp (upper_alg x)"
+  apply (cases x) 
+  by (auto simp:valid_Ratalg_def add.commute alg_bound_and_root(2) pos_add_strict)
+
+lemma lower_alg_less:"valid_alg_imp x 
+        \<Longrightarrow> real_of_alg_imp (lower_alg x) < real_of_alg_imp x"
+  apply (cases x) 
+  apply (auto simp:valid_Ratalg_def)
+  using alg_bound_and_root(1) by force
+
 
 
 end

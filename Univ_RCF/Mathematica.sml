@@ -8,6 +8,7 @@ sig
 (*MATH_KERNEL should point to an executable of Mathematica Kernel*)
 val execute_and_print: string -> string;
 
+val root_iso_code: string;
 
 end
 
