@@ -2,14 +2,12 @@ theory Univ_RCF_Reification imports
   Complex_Main
   "HOL-Library.Reflection"
   Preprocess_Polys
-  (*"../New_Real_Algebraic_Numbers/Real_Alg_Imp"*)
 begin
 
 lemma list_Cons_induct[case_names Nil Cons CCons]:
   "\<lbrakk>P [];\<And>x. P [x];\<And>x1 x2 xs. P (x2#xs) \<Longrightarrow> P (x1 #x2 # xs)\<rbrakk> \<Longrightarrow> P xs"
 apply (induct xs,simp)
 by (case_tac xs,auto)
-
 
 section \<open>strict_sorted\<close>
 
@@ -286,20 +284,7 @@ fun norm_form_interp:: "norm_form \<Rightarrow>real list \<Rightarrow> bool" whe
   "norm_form_interp (QF qf) vs = qf_form_interp qf vs"|
   "norm_form_interp (ExQ norm_form) vs = (\<exists>x. norm_form_interp norm_form (x#vs))"|
   "norm_form_interp (AllQ norm_form) vs = (\<forall>x. norm_form_interp norm_form (x#vs))"
-  
-declare norm_form_interp.simps(1)[code]
 
-(*
-lemma qf_form_pos_code[code]:"qf_form_interp (Pos (Pol p v)) vs = (sgn_at p (vs!v) = 1)"
-  "qf_form_interp (Pos (Const c)) vs = (c>0)"
-  unfolding sgn_at_def  by (auto simp add:sgn_1_pos)
-
-lemma qf_form_zero_code[code]:"qf_form_interp (Zero (Pol p v)) vs = (sgn_at p (vs!v) = 0)"
-  "qf_form_interp (Zero (Const c)) vs = (c=0)"
-  unfolding sgn_at_def  by (auto simp add:sgn_0_0)
-
-declare qf_form_interp.simps(3-6) [code]
-*)
 
 lemma rename_num:
   "length vs'=n \<Longrightarrow> num_interp (rename_num n num) (vs'@v#vs) = num_interp num (vs'@vs)"
@@ -401,34 +386,6 @@ fun norm_form2_interp:: "norm_form2 \<Rightarrow>real list \<Rightarrow> bool" w
 
 declare [[code drop:norm_form2_interp]]
 
-
-(*
-lemma int_poly_smult:
-  fixes p::"real poly"
-  assumes "\<forall>r\<in>set(coeffs p). r\<in>\<rat>"
-  shows "of_int_poly (clear_de_real p) = 
-    smult (of_int (de_lcm (map_poly rat_of_real p))) p"
-proof -
-  let ?sc="of_int (de_lcm (map_poly rat_of_real p))"
-  have "of_int_poly (clear_de_real p) = smult ?sc (map_poly rat_of_real p)"
-    by (simp add:clear_de_real)
-  then have "of_int_poly (int_poly p) = of_rat_poly (smult ?sc (map_poly rat_of_real p))"
-    using of_rat_poly_of_int_poly_eq by metis
-  also have "... = smult ?sc (of_rat_poly (map_poly rat_of_real p))"
-    by auto
-  also have "... = smult ?sc ((map_poly (of_rat o rat_of_real) p))"
-    unfolding of_rat_poly_def by (subst map_poly_map_poly,auto)
-  also have "... = smult ?sc p"
-    proof -
-      have "map_poly (of_rat o rat_of_real) p = p" using assms
-        apply (induct p)
-        by (auto simp add:map_poly_pCons rat_of_real_inv)
-      thus ?thesis by auto
-    qed
-  finally show ?thesis .
-qed 
-*)
-
 lemma normalize_qf_form2_correct:
     "qf_form2_interp (normalize_qf_form2 norm_form) vs = qf_form_interp norm_form vs" 
 proof -
@@ -460,156 +417,6 @@ qed
 section \<open>Efficient normalisation\<close>
 
 
-
-
-(*
-ML \<open>
-val term_of_nat = HOLogic.mk_number \<^typ>\<open>nat\<close> o @{code integer_of_nat};
-
-val term_of_int = HOLogic.mk_number \<^typ>\<open>int\<close> o @{code integer_of_int};
-
-fun term_of_pexpr (@{code PExpr1} x) = \<^term>\<open>PExpr1\<close> $ term_of_pexpr1 x
-  | term_of_pexpr (@{code PExpr2} x) = \<^term>\<open>PExpr2\<close> $ term_of_pexpr2 x
-and term_of_pexpr1 (@{code PCnst} k) = \<^term>\<open>PCnst\<close> $ term_of_int k
-  | term_of_pexpr1 (@{code PVar} n) = \<^term>\<open>PVar\<close> $ term_of_nat n
-  | term_of_pexpr1 (@{code PAdd} (x, y)) = \<^term>\<open>PAdd\<close> $ term_of_pexpr x $ term_of_pexpr y
-  | term_of_pexpr1 (@{code PSub} (x, y)) = \<^term>\<open>PSub\<close> $ term_of_pexpr x $ term_of_pexpr y
-  | term_of_pexpr1 (@{code PNeg} x) = \<^term>\<open>PNeg\<close> $ term_of_pexpr x
-and term_of_pexpr2 (@{code PMul} (x, y)) = \<^term>\<open>PMul\<close> $ term_of_pexpr x $ term_of_pexpr y
-  | term_of_pexpr2 (@{code PPow} (x, n)) = \<^term>\<open>PPow\<close> $ term_of_pexpr x $ term_of_nat n
-
-fun term_of_result (x, (y, zs)) =
-  HOLogic.mk_prod (term_of_pexpr x, HOLogic.mk_prod
-    (term_of_pexpr y, HOLogic.mk_list \<^typ>\<open>pexpr\<close> (map term_of_pexpr zs)));
-
-local
-
-fun fnorm (ctxt, ct, t) = Thm.mk_binop \<^cterm>\<open>Pure.eq :: pexpr \<times> pexpr \<times> pexpr list \<Rightarrow> pexpr \<times> pexpr \<times> pexpr list \<Rightarrow> prop\<close>
-  ct (Thm.cterm_of ctxt t);
-
-val (_, raw_fnorm_oracle) = Context.>>> (Context.map_theory_result
-  (Thm.add_oracle (\<^binding>\<open>fnorm\<close>, fnorm)));
-
-fun fnorm_oracle ctxt ct t = raw_fnorm_oracle (ctxt, ct, t);
-
-in
-
-val cv = @{computation_conv "pexpr \<times> pexpr \<times> pexpr list"
-  terms: fnorm nat_of_integer Code_Target_Nat.natural
-    "0::nat" "1::nat" "2::nat" "3::nat"
-    "0::int" "1::int" "2::int" "3::int" "-1::int"
-  datatypes: fexpr int integer num}
-  (fn ctxt => fn result => fn ct => fnorm_oracle ctxt ct (term_of_result result))
-
-end
-\<close>
-val nat_of_integer = @{code nat} o @{code int_of_integer};
-*)
-
-
-(*
-ML_val \<open>
-fun real_of_Float (@{code Float} (m, e)) =
-    real_of_man_exp (@{code integer_of_int} m) (@{code integer_of_int} e)
-
-fun term_of_int i = (HOLogic.mk_number @{typ int} (@{code integer_of_int} i))
-
-fun term_of_Float (@{code Float} (m, e)) = @{term Float} $ term_of_int m $ term_of_int e
-
-\<close>
-*)
-
-(*
-ML_val \<open>
-HOLogic.mk_number
-\<close>
-
-ML \<open>
-  local
-
-  fun int_of_nat @{code "0 :: nat"} = 0
-    | int_of_nat (@{code Suc} n) = int_of_nat n + 1;
-
-  in
-
-  val comp_nat = @{computation nat terms:
-    "plus :: nat \<Rightarrow> nat \<Rightarrow> nat" "times :: nat \<Rightarrow> nat \<Rightarrow> nat"
-    "sum_list :: nat list \<Rightarrow> nat" "prod_list :: nat list \<Rightarrow> nat"
-    datatypes: nat "nat list"}
-    (fn post => post o HOLogic.mk_nat o int_of_nat o the);
-
-  end
-\<close>
-
-ML_val \<open>
-  comp_nat \<^context> \<^term>\<open>prod_list [Suc 0, Suc (Suc 0)] * Suc (Suc 0)\<close>
-\<close>
-
-typ integer
-
-term normalize2
-thm norm_form2.simps
-
-typ norm_form2 typ qf_form2
-thm norm_form2.case
-
-thm qf_form2.case
-
-term norm_form2.QF
-*)
-
-
-(*
-datatype num = C real | Add num num | Minus num | Mul num num | Var nat | Power num nat
-datatype norm_num = Pol "real poly" nat | Const real | Abnorm num
-datatype norm_num2 = Pol "int poly" nat | Const real | Abnorm num
-datatype qf_form2 =  Pos norm_num2 | Zero norm_num2 | Neg qf_form2 
-    | Conj qf_form2 qf_form2 | Disj qf_form2 qf_form2 | T | F
-datatype norm_form2 = QF qf_form2 | ExQ norm_form2 | AllQ norm_form2
-*)
-
-(*
-typ norm_num2
-
-find_consts norm_num2
-
-ML_val \<open>
-@{code Pol}
-\<close>
-
-ML \<open>
-  local
-
-  fun raw_dvd (b, ct) = Thm.mk_binop \<^cterm>\<open>Pure.eq :: bool \<Rightarrow> bool \<Rightarrow> prop\<close>
-    ct (if b then \<^cterm>\<open>True\<close> else \<^cterm>\<open>False\<close>);
-
-  val (_, dvd_oracle) = Context.>>> (Context.map_theory_result
-    (Thm.add_oracle (\<^binding>\<open>dvd\<close>, raw_dvd)));
-
-  in
-
-  val conv_dvd = @{computation_conv bool terms:
-    "Rings.dvd :: int \<Rightarrow> int \<Rightarrow> bool"
-    "plus :: int \<Rightarrow> int \<Rightarrow> int"
-    "minus :: int \<Rightarrow> int \<Rightarrow> int"
-    "times :: int \<Rightarrow> int \<Rightarrow> int"
-    "0 :: int" "1 :: int" "2 :: int" "3 :: int" "-1 :: int"
-  } (K (curry dvd_oracle))
-
-  end
-\<close>
-*)
-
-(*
-fun pol (ctxt, ct, t) = Thm.mk_binop \<^cterm>\<open>Pure.eq :: pol \<Rightarrow> pol \<Rightarrow> prop\<close>
-  ct (Thm.cterm_of ctxt t);
-
-val (_, raw_pol_oracle) = Context.>>> (Context.map_theory_result
-  (Thm.add_oracle (\<^binding>\<open>pnsubstl\<close>, pol)));
-
-fun pol_oracle ctxt ct t = raw_pol_oracle (ctxt, ct, t);
-*)
-
 ML \<open>
 
 fun raw_normalize2 (ctxt, ct,t) = Thm.mk_binop \<^cterm>\<open>Pure.eq :: norm_form2 \<Rightarrow> norm_form2 \<Rightarrow> prop\<close>
@@ -619,10 +426,6 @@ val (_, normalize2_oracle) = Context.>>> (Context.map_theory_result
   (Thm.add_oracle (\<^binding>\<open>normalize2\<close>, raw_normalize2)));
 \<close>
 
-
-ML_val \<open>
-@{term "[:1::int,2:]"}
-\<close>
 
 definition "coeffs_int = (coeffs :: _ \<Rightarrow> int list)"
 definition "coeffs_real = (coeffs :: _ \<Rightarrow> real list)" 
@@ -764,59 +567,6 @@ fun efficient_norm_tac ctxt =
       THEN'
         simp_tac (Raw_Simplifier.clear_simpset ctxt  
           addsimps @{thms poly_of_list_def Poly.simps})
-
 \<close>     
-
-(*
-ML_val \<open>
-THEN';
-simp_tac;
-put_simpset;
-addsimprocs;
-Raw_Simplifier.clear_simpset
-\<close>
-
-
-
-ML_val \<open>
-val conv1 = comp_norm_conv \<^context> @{cterm "normalize2
-       (normalize
-         (form.AllQ
-           (Ge (Add (Add (Mul (Power (Var 0) 2) (C (1 / 2))) (Minus (Var 0)))
-                 (Mul (C 1) (C (1 / 2))))
-             (C 0))))"}
-\<close>
-
-
-
-
-(*
-ML_val \<open>
-  comp_norm \<^context> \<^term>\<open>Pol [:1::int,2:] (1::nat)\<close> |> Thm.cterm_of @{context} 
-\<close>
-*)
-
-
-
-lemma example_2:
-    "\<forall>x::real. x^2/2 - x + 1/2 \<ge>0 "
-  apply (tactic \<open>
-     (Reflection.default_reflection_tac 
-      @{context}   
-      @{thms norm_form2_correct} 
-      @{thms num_interp_eqs form_interp.simps} 
-      NONE) 1
-  \<close>)
- apply (tactic \<open>
-   efficient_norm_tac @{context} 1
-    \<close>)
-  apply (simp only:poly_of_list_def Poly.simps)
-
-  find_theorems poly_of_list
-
-
-  thm poly_of_list_def
-
-*)
 
 end

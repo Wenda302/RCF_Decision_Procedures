@@ -4,11 +4,18 @@
 signature Mathematica =
 sig
   
+type path = string;
+type command = string;
 
 (*MATH_KERNEL should point to an executable of Mathematica Kernel*)
-val execute_and_print: string -> string;
+val execute_and_print: path -> command -> string;
 
+(*
 val root_iso_code: string;
+val get_instance_code : string;
+*)
+
+val mk_exec_str : path -> string -> string list;
 
 end
 
@@ -16,6 +23,8 @@ end
 structure Mathematica :> Mathematica =
 struct
 
+type path = string;
+type command = string;
 
 exception Mathematica_Error of string;
 
@@ -32,9 +41,11 @@ fun matches class c =
     List.exists (fn x => x = c) (explode class);
 
 (* Some basic lexical classes: Note that '>' is a special white-space
-    char for Mathematica's FullForm output mode. *)
+    char for Mathematica's FullForm output mode. 
+    Strangely, there will be '\' occasionally, so we need to treat '\' as a white space.
+*)
 
-val white_space = matches " \t\n\r>"; 
+val white_space = matches " \t\n\r>\\"; 
 val num = matches "0123456789.";
 val alpha_num = 
     matches "abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -79,7 +90,7 @@ fun parse_m_tm_lst l =
         "[" :: r =>
         (case parse_m_tm_lst r of
              (tm_lst, "]" :: s) => (tm_lst, s)
-           | (_, s :: s') => raise MATHEMATICA_PARSING ("bad term list: " ^ s)
+           | (_, s :: s') => raise MATHEMATICA_PARSING ("bad term list: " ^ s^String.concat s' )
            | _ => raise MATHEMATICA_PARSING "bad term list")
       | _ => case parse_m_tm' l of
                  (tm, r) =>
@@ -284,14 +295,26 @@ fun mk_result_tokens () =
     case mk_is() of
         SOME is =>
         let val s = stream_strings_until_prompt is "InMT>" []
-            val s' = String.concat s
-            (* val _ = print ("Read: " ^ s' ^ "\n") *)
+            val s' = String.concat s;
+            (*val _ = println ("Read: " ^ s') *)
             val l = lex (explode s')
         in SOME l end
       | NONE => NONE;
 
+fun mk_result_tokens' () =
+    case mk_is() of
+        SOME is =>
+        let val s = stream_strings_until_prompt is "InMT>" []
+            val s' = String.concat s;
+            (*val _ = println ("Read: " ^ s') *)
+            val l = lex (explode s')
+        in SOME s end
+      | NONE => NONE;
+
 (* Send a command string to MK and parse back the result.
    We use the m_fm parser, so this works for also QE results. *)
+
+
 
 fun m_fm_of_mk_exec_str s =
     let val _ = mk_writeln s
@@ -301,57 +324,6 @@ fun m_fm_of_mk_exec_str s =
           | NONE => NONE
     end;
 
-
-val root_iso_code =
-" isolateRoots[polys_]:=Module[{sortedRoots,sortedRootsEx,minDiff,expr,floatbound}, \n \
-\ (*{lb,ub}=floatbound[r,d] s.t. lb and ub are binary rationals, r-d<lb<r, and r<ub<r+d*) \
-\ floatbound[r_,d_]:=With[ {n=Power[2,Ceiling[Log[2,1/d]]]}, \
-\ {Floor[n*r]/n,Ceiling[n*r]/n}]; \
-
-\ expr=Or@@((#==0)&/@ polys); \
-\ sortedRoots = DeleteDuplicates[SortBy[RootReduce /@ (x /. SemialgebraicComponentInstances[expr, x]), N]];\
-\ (*sortedRoots=Union[x /. SemialgebraicComponentInstances[expr,x]];*) \
-\ (*sortedRootsEx=Sort[Append[sortedRoots,0],Less];*) \
-
-\ (*minDiff calculates a suitable size for isolation interval such that those intervals don't overlap and exclude 0*) \
-\ minDiff=Min[(#[[2]]-#[[1]])& /@ Transpose[{Drop[N /@ sortedRoots,-1],Drop[N /@ sortedRoots,1]}]]; \
-\ \
-\ (If [# \\[Element] Algebraics, \
-\ If[# \\[Element]Rationals,{MinimalPolynomial[#],floatbound[#,minDiff/2]},{MinimalPolynomial[#],IsolatingInterval[#,minDiff]}],#])&/@ sortedRoots \
-\ ] \n"
-
-(*
-val root_iso_code =
-    "isolateRoots[polys_] :=    \n \
-\Module[{sortedRoots, sortedRootsEx, minDiff, expr},   \n \
-\   expr = Or @@ ((# == 0) & /@ polys);   \n \
-\   sortedRoots =    \n \
-\    Sort[x /. SemialgebraicComponentInstances[expr, x], Less];   \n \
-\   sortedRootsEx = Sort[Append[sortedRoots, 0], Less];   \n \
-\   (* minDiff calculates a suitable size for isolation interval such    \n \
-\       that those intervals don't overlap and exclude 0 *)   \n \
-\   minDiff =   \n \
-\    Min[(#[[2]] - #[[1]]) & /@   \n \
-\      Transpose[{Drop[N /@ sortedRootsEx, -1],   \n \
-\        Drop[N /@ sortedRootsEx, 1]}]];   \n \
-\    (If [# \\[Element] Algebraics, {MinimalPolynomial[#],   \n \
-\        IsolatingInterval[#, minDiff]}, #]) & /@ sortedRoots   \n \
-\   ]\n";
-*)
-
-val get_instance_code =
-"getInstance[fm_] := \
- \ With[{xs = x /. FindInstance[fm, {x}], minDiff = 0.1}, \
- \ (*{lb,ub}=floatbound[r,d] s.t.lb and ub are binary rationals,r-d<lb< \
- \ r,and r<ub<r+d*) \
- \ floatbound[r_, d_] := \
- \ With[{n = Power[2, Ceiling[Log[2, 1/d]]]}, {Floor[n*r]/n, Ceiling[n*r]/n}];\
- \ (If[# \\[Element] Algebraics, \
- \      If[# \\[Element] Rationals, {MinimalPolynomial[#], \ 
- \       floatbound[#, minDiff/2]}, {MinimalPolynomial[#], \
- \      IsolatingInterval[#, minDiff]}], #]) & /@ xs] \n"
-
-
 (* A simple handshaking function.  This should be run immediately
    after opening up an MK process.  It just does a simple check to
    make sure the MK is being responsive, and crucially gets the system
@@ -359,7 +331,7 @@ val get_instance_code =
    "\nOut[...]//FullForm=" and end with "\n\nIn[...]:= ", with the
    '...' being numbers. *)
 
-fun mk_handshake () =
+fun mk_handshake (lib_path:string) =
     ((* print ("\n" ^ (mk_opt_str (!mk_active_options)) ^ "\n"); *)
      mk_writeln ("InitTime = TimeUsed[]");
 
@@ -368,16 +340,21 @@ fun mk_handshake () =
 
      (* We need to install into Mathematica's runtime Wenda Li's
         polynomial real root isolation code *)
-        
+    (*
      mk_writeln (root_iso_code);
      mk_writeln (get_instance_code);
+     *)
+     
+     mk_writeln ("Get[\""^lib_path^"/isolateRoots\"]");
+     mk_writeln ("Get[\""^lib_path^"/getInstance\"]");
+    
 
      (*** Setup our custom Mathematica REPL so we can use line-based I/O ***)
      mk_writeln ("While[True, NV = Input[\"InMT>\\n\"]; Print[NV]; If[NV == Quit, Quit[]]]"));
 
 (* Open a MathKernel process and setup the global mk_proc with I/O streams *)
 
-fun mk_open() = case !mk_proc of
+fun mk_open (lib_path:string) = case !mk_proc of
     SOME pio => pio
   | NONE =>
     let val mk_bin_str =
@@ -393,7 +370,7 @@ fun mk_open() = case !mk_proc of
     in
         mk_proc := SOME (proc, instr, outstr);
         println ("Starting to handshake with MathKernel.");
-        mk_handshake();
+        mk_handshake lib_path;
         println ("Finish handshaking with MathKernel.");
         mathematica_used := true;
         stream_strings_until_prompt instr "InMT>" [];
@@ -407,6 +384,7 @@ fun mk_open() = case !mk_proc of
    used only for printing purposes. *)
 
 type m_real_alg = Algebra.poly * Rat.rat * Rat.rat;
+type Float = int * int;
 
 (* Convert, e.g.,
 
@@ -421,6 +399,11 @@ type m_real_alg = Algebra.poly * Rat.rat * Rat.rat;
      val p_x = [(Rat.one, [(0, 1)])] : poly;
 
  *)
+
+fun float_of_m_numeric_tm q = 
+   case q of
+      List [Int a,Int b] => (a,b):Float
+      | _ => raise MATHEMATICA_PARSING "Float bad form"
 
 local open Algebra Rat in
 
@@ -483,6 +466,16 @@ fun mra_of_m_tm m =
             rat_of_m_numeric_tm q2)
       | _ => raise MATHEMATICA_PARSING "Bad Mathematica real_alg"
 
+fun algf_of_m_tm m =
+    case m of
+        List([(Function [f]),
+              List([q1, q2])])
+        => (poly_of_m_fun f,
+            float_of_m_numeric_tm q1,
+            float_of_m_numeric_tm q2)
+      | _ => raise MATHEMATICA_PARSING "Bad Mathematica real_alg"
+
+
 (* Example:
 
 let val tm =
@@ -509,24 +502,56 @@ let val tm =
 
 *)
 
+(*
 fun mras_of_m_tm (m : m_tm) =
     case m of
         List tms => map mra_of_m_tm tms
       | _ => raise MATHEMATICA_PARSING "Bad list of real_algs"
+*)
+
+fun mras_of_m_tm (m : m_tm) =
+    case m of
+        List tms => map algf_of_m_tm tms
+      | _ => raise MATHEMATICA_PARSING "Bad list of real_algs"
 
 (* Isabelle/HOL style string representation *)
 
+(*
 fun mra_toIsabelleString (r : m_real_alg) =
     case r of
         (p, l, u) => if l = u then ("RAT (" ^ (Rat.toString l) ^ ")")
                      else ("ALG [:" ^ (Algebra.univ_p_toString p) ^
                            ":] (" ^ (Rat.toString l) ^ ") (" ^
                            (Rat.toString u) ^ ")") ;
+*)
 
-fun execute_and_print str =
+fun isar_str_of_int (i:int) = 
+    (if i>0 then Int.toString i else "-"^Int.toString (~ i));
+
+fun mra_toIsabelleString (r : Algebra.poly * Float * Float) =
+    case r of
+        (p, (l1,l2), (u1,u2)) => ("ALG [:" ^ (Algebra.univ_p_toString p) ^
+                           ":] (" ^ isar_str_of_int l1^","^ isar_str_of_int l2^ ") (" ^
+                           isar_str_of_int u1^","^ isar_str_of_int u2) ^ ")" ;
+
+
+fun mk_exec_str path s = 
+    let
+      val _ = mk_open path;
+      val _ = mk_writeln s;
+      val res = case  mk_result_tokens() of
+            SOME l => (*parse_m_fm*) l
+      val _ = mk_close true;
+      
+    in
+      res
+    end;
+
+
+fun execute_and_print path command =
   (let
-    val _ = mk_open ();
-    val rts = case m_fm_of_mk_exec_str str of
+    val _ = mk_open path;
+    val rts = case m_fm_of_mk_exec_str command of
             SOME (Tm m_tm) => mras_of_m_tm m_tm
           | SOME _ => raise MATHEMATICA_PARSING "Term expected"
           | NONE => raise MATHEMATICA_PARSING "NONE";

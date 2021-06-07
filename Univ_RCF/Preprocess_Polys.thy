@@ -19,11 +19,7 @@ lemma [code]:"is_rat (Ratreal x) = True" unfolding is_rat_def by auto
 
 lemma [code]:
     "rat_of_real (Ratreal r) = r" 
-    (*"rat_of_real (real_of_float f) = rat_of_float f"*)
-  subgoal by (metis Ratreal_def f_inv_into_f of_rat_eq_iff rangeI rat_of_real_def)
-  (*subgoal by (metis f_inv_into_f of_rat_eq_iff rangeI rat_of_real_def 
-                real_of_rat_of_float) *)
-  done
+  by (metis Ratreal_def f_inv_into_f of_rat_eq_iff rangeI rat_of_real_def)
 
 lemma rat_of_real_id: "rat_of_real o of_rat = id" unfolding rat_of_real_def
   by (meson inj_onI inv_o_cancel of_rat_eq_iff)

@@ -6,8 +6,6 @@ theory RCF_Decision_Proc
 imports 
    Univ_RCF_Reification
   "../New_Real_Algebraic_Numbers/Univariate_Sign_Determination"
-  (*"HOL-Library.Code_Target_Numeral"*)
-
 begin
 
 
@@ -643,13 +641,11 @@ definition contain_all_roots:: "alg_float list \<Rightarrow> float poly set \<Ri
       algs)))"
 *)
 
-term fi_changes_R_spmods
-
 definition sign_int_coeffs_at_core::"int poly \<Rightarrow> alg_imp \<Rightarrow> int" where
   "sign_int_coeffs_at_core q x = (
               case x of
                 Ratalg x lb ub \<Rightarrow> sign (eval_poly rat_of_int q x) |
-                Polyalg p lb ub \<Rightarrow> fi_changes_itv_spmods lb ub p (pderiv p * q) |
+                Polyalg p lb ub \<Rightarrow> sign_at_Polyalg_core q p lb ub |
                 Floatalg f \<Rightarrow> sign (eval_poly float_of_int q f))"
 
 lemma sign_int_coeffs_at_core:
@@ -897,12 +893,11 @@ lemma ExQ_intro_code[unfolded Let_def]:
   by (intro ExQ_intro,auto)
 
 
-datatype alg_rat_aux = ALG "int poly" rat rat 
-                      | RAT rat
+datatype alg_rat_aux = ALG "int poly" "int*int" "int*int"
 
+(*
 definition float_of_rat::"rat \<Rightarrow> float" where
   "float_of_rat r = (let (n,d) = quotient_of r in Float n (- bitlen d + 1))"
-
 
 definition float_of_rat_l::"rat \<Rightarrow> float" where
   "float_of_rat_l r = (let (n,d) = quotient_of r in lapprox_rat 10 n d)"
@@ -922,28 +917,35 @@ definition rat_to_alg::"rat \<Rightarrow> alg_imp" where
         in
           if lb=ub then Floatalg lb else Ratalg r lb ub
       ))"  
+*)
 
+(*
 definition alg_rat_aux_conv::"alg_rat_aux \<Rightarrow> alg_imp" where
   "alg_rat_aux_conv = (\<lambda>x. case x of 
       ALG p lb ub \<Rightarrow> Polyalg p (float_of_rat_l lb) (float_of_rat_r ub)
      |RAT r \<Rightarrow> rat_to_alg r) "
 
+
+*)
+
+fun alg_rat_aux_conv::"alg_rat_aux \<Rightarrow> alg_imp" where
+  "alg_rat_aux_conv (ALG p (l1,l2) (u1,u2)) = 
+    (if l1=u1 \<and> l2=u2 then Floatalg (Float l1 l2) else
+      Polyalg p (Float l1 l2) (Float u1 u2))"
+
 definition alg_rat_list_conv::"alg_rat_aux list \<Rightarrow> alg_imp list" where
   "alg_rat_list_conv = map alg_rat_aux_conv " 
-
-value "lapprox_rat 5 (-3) 1"
 
 (*
 declare [[ML_source_trace]] -- \<open>For debug purposes\<close>
 *)
 
+(*
 lemma [code_computation_unfold]:
   "numeral x = rat_of_int (Code_Target_Int.positive x)"
   "numeral x = real_of_int (Code_Target_Int.positive x)"
   by simp_all
-
-
-term "(=):: alg_imp \<Rightarrow> _ \<Rightarrow> bool"
+*)
 
 ML \<open>
   val rcf_holds = @{computation_check terms:
@@ -1060,17 +1062,9 @@ ML \<open>
       Code_Numeral.negative
   
      datatypes:Num.num bool alg_imp alg_rat_aux float real 
-         "alg_rat_aux list" "int list" "int poly list"
+         "alg_rat_aux list" "int list" "int poly list" "int \<times> int"
   };
 \<close>
-
-term poly_of_list
-
-code_thms fi_changes_itv_spmods
-term fi_changes_itv_spmods
-term Alg
-
-value "fi_changes_itv_spmods 1 3 [:1,2,3:]"
 
 SML_import \<open>val println = Output.writeln\<close>
 SML_import \<open>val zz_gcd = Integer.gcd\<close>
@@ -1083,11 +1077,7 @@ SML_file "Mathematica.sml"
 
 SML_export \<open>val execute_MathKernel_print = Mathematica.execute_and_print \<close>
 
-SML_export \<open>val root_iso_code = Mathematica.root_iso_code\<close>
-
-ML_val \<open>
-writeln root_iso_code
-\<close>
+SML_export \<open>val mk_exec_str = Mathematica.mk_exec_str \<close>
 
 ML_file "univ_rcf.ML"
 
@@ -1095,7 +1085,7 @@ ML_file "univ_rcf.ML"
 method_setup univ_rcf_cert = \<open>
      Args.term  >>
       (fn cert => fn ctxt => 
-        let val _ = @{print} cert in 
+        let (* val  _ = @{print} cert *) in 
         SIMPLE_METHOD' (Univ_RCF.univ_rcf_cert ctxt cert)
         end
       )
@@ -1107,317 +1097,14 @@ method_setup univ_rcf = \<open>
       ( fn ctxt => SIMPLE_METHOD' (Univ_RCF.univ_rcf ctxt ))
 \<close>
 
-(*
-ML \<open>
-val root_iso_code =
-" isolateRoots[polys_]:=Module[{sortedRoots,sortedRootsEx,minDiff,expr,floatbound}, \n \
-\ (*{lb,ub}=floatbound[r,d] s.t. lb and ub are binary rationals, r-d<lb<r, and r<ub<r+d*) \
-\ floatbound[r_,d_]:=With[ {n=Power[2,Ceiling[Log[2,1/d]]]}, \
-\ {Floor[n*r]/n,Ceiling[n*r]/n}]; \
-
-\ expr=Or@@((#==0)&/@ polys); \
-\ sortedRoots = DeleteDuplicates[SortBy[RootReduce /@ (x /. SemialgebraicComponentInstances[expr, x]), N]];\
-\ (*sortedRoots=Union[x /. SemialgebraicComponentInstances[expr,x]];*) \
-\ (*sortedRootsEx=Sort[Append[sortedRoots,0],Less];*) \
-
-\ (*minDiff calculates a suitable size for isolation interval such that those intervals don't overlap and exclude 0*) \
-\ minDiff=Min[(#[[2]]-#[[1]])& /@ Transpose[{Drop[N /@ sortedRoots,-1],Drop[N /@ sortedRoots,1]}]]; \
-\ \
-\ (If [# \\[Element] Algebraics, \
-\ If[# \\[Element]Rationals,{MinimalPolynomial[#],floatbound[#,minDiff/2]},{MinimalPolynomial[#],IsolatingInterval[#,minDiff]}],#])&/@ sortedRoots \
-\ ] \n";
-\<close>
-*)
-
-(*
-ML\<open>
-val io = TextIO.openOut("/home/wenda/foo.txt");
-(*val io = TextIO.stdOut;*)
-TextIO.output ( io,root_iso_code);
-TextIO.closeOut io;
-\<close>
-*)
 
 (*for quick debugging*)
-
-ML_val \<open>
-Thm.cterm_of;
-Syntax.string_of_term;
-Thm.prop_of
-\<close>
-
 (*
-ML \<open>
-fun my_print_tac ctxt thm = let
-val _ = tracing (Pretty.string_of (pretty_thm_no_vars ctxt thm)) in
-Seq.single thm end
-\<close>
-*)
-
-ML \<open>
-fun my_print_tac ctxt thm = let
-val _ = tracing (Syntax.string_of_term ctxt (Thm.prop_of thm) ) in
-Seq.single thm end;
-\<close>
-
-(*)
-lemma example_7:"
-\<forall>x::real. x < -1 | 0 > x | (41613*x)/2 + 26169*x^2 + (64405*x^3)/4 + 4983*x^4 + 
-    (7083*x^5)/10 + (1207*x^6)/35 + x^7/8 > -6435 | 
-  11821609800*x + 22461058620*x^2 + 35*x^12 <= 
-   4171407240*x^3 + 45938678170*x^4 + 54212099480*x^5 + 31842714428*x^6 + 
-    10317027768*x^7 + 1758662439*x^8 + 144537452*x^9 + 5263834*x^10 + 
-    46204*x^11 | x <= 0 | 9609600*x + 45805760*x^2 + 92372280*x^3 + 
-    102560612*x^4 + 68338600*x^5 + 27930066*x^6 + 6857016*x^7 + 
-    938908*x^8 + 58568*x^9 + 753*x^10 <= 0 | 
-  788107320*x + 1101329460*x^2 + 10*x^11 <= 
-   782617220*x^3 + 2625491260*x^4 + 2362290448*x^5 + 1063536663*x^6 + 
-    240283734*x^7 + 24397102*x^8 + 1061504*x^9 + 9179*x^10 | 
-  90935460*x + 81290790*x^2 + 5*x^10 <= 125595120*x^3 + 237512625*x^4 + 
-    161529144*x^5 + 51834563*x^6 + 6846880*x^7 + 356071*x^8 + 2828*x^9 | 
-  640640*x + 2735040*x^2 + 4837448*x^3 + 4581220*x^4 + 2505504*x^5 + 
-    794964*x^6 + 138652*x^7 + 11237*x^8 + 207*x^9 <= 0 | 
-  5*x^8 <= 73920*x + 238560*x^2 + 303324*x^3 + 192458*x^4 + 63520*x^5 + 
-    10261*x^6 + 608*x^7 | 73920*x + 278880*x^2 + 424284*x^3 + 
-    332962*x^4 + 142928*x^5 + 32711*x^6 + 3514*x^7 + 98*x^8 <= 0 | x <= -1
-"
-apply (tactic \<open>
-     (Reflection.default_reflection_tac 
-      @{context}   
-      @{thms norm_form2_correct} 
-      @{thms num_interp_eqs form_interp.simps} 
-      NONE) 1
-  \<close>)
-apply (tactic \<open>efficient_norm_tac @{context} 1\<close>)
-apply (tactic \<open>
-    resolve0_tac [(infer_instantiate' @{context}
-        [NONE,NONE,SOME (Thm.cterm_of @{context} (@{term alg_rat_list_conv} 
-        $ @{term "
-
-[ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-    198324, 9656, 35:]
-                        (- 34937541621241 / 137438953472)
-                        (- 279500332969927 / 1099511627776),
-ALG [:90935460, 81290790, - 125595120, - 237512625,
-  - 161529144, - 51834563, - 6846880, - 356071,
-- 2828, 5:]
-                        (- 23923468024393 / 274877906944)
-                        (- 765550976780575 / 8796093022208),
-                       ALG [:788107320, 1101329460, - 782617220,
-                             - 2625491260, - 2362290448, - 1063536663,
-                             - 240283734, - 24397102, - 1061504, - 9179,
-                             10:]
-                        (- 348314866751655 / 4398046511104)
-                        (- 696629733503309 / 8796093022208),
-                       ALG [:11821609800, 22461058620, - 4171407240,
-                             - 45938678170, - 54212099480, - 31842714428,
-                             - 10317027768, - 1758662439, - 144537452,
-                             - 5263834, - 46204, 35:]
-                        (- 649996774163419 / 8796093022208)
-                        (- 324998387081709 / 4398046511104),
-                       ALG [:9609600, 45805760, 92372280, 102560612,
-                             68338600, 27930066, 6857016, 938908, 58568,
-                             753:]
-                        (- 520047425729199 / 8796093022208)
-                        (- 260023712864599 / 4398046511104),
-                       ALG [:640640, 2735040, 4837448, 4581220, 2505504,
-                             794964, 138652, 11237, 207:]
-                        (- 87188559816435 / 2199023255552)
-                        (- 43594279908217 / 1099511627776),
-                       ALG [:73920, 278880, 424284, 332962, 142928, 32711,
-                             3514, 98:]
-                        (- 53674445178253 / 2199023255552)
-                        (- 13418611294563 / 549755813888),
-                       ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-                             198324, 9656, 35:]
-                        (- 25415962588497 / 2199023255552)
-                        (- 50831925176993 / 4398046511104),
-                       ALG [:9609600, 45805760, 92372280, 102560612,
-                             68338600, 27930066, 6857016, 938908, 58568,
-                             753:]
-                        (- 51102732948159 / 8796093022208)
-                        (- 25551366474079 / 4398046511104),
-                       ALG [:- 73920, - 238560, - 303324, - 192458, - 63520,
-                             - 10261, - 608, 5:]
-                        (- 97284234774957 / 17592186044416)
-                        (- 24321058693739 / 4398046511104),
-                       ALG [:11821609800, 22461058620, - 4171407240,
-                             - 45938678170, - 54212099480, - 31842714428,
-                             - 10317027768, - 1758662439, - 144537452,
-                             - 5263834, - 46204, 35:]
-                        (- 9422009463661 / 2199023255552)
-                        (- 9422009463659 / 2199023255552),
-                       ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-                             198324, 9656, 35:]
-                        (- 9051274642631 / 2199023255552)
-                        (- 4525637321315 / 1099511627776),
-                       ALG [:788107320, 1101329460, - 782617220,
-                             - 2625491260, - 2362290448, - 1063536663,
-                             - 240283734, - 24397102, - 1061504, - 9179,
-                             10:]
-                        (- 6463912267981 / 2199023255552)
-                        (- 1615978066995 / 549755813888),
-                       ALG [:640640, 2735040, 4837448, 4581220, 2505504,
-                             794964, 138652, 11237, 207:]
-                        (- 1385623990739 / 549755813888)
-                        (- 5542495962955 / 2199023255552),
-                       ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-                             198324, 9656, 35:]
-                        (- 2473395090017 / 1099511627776)
-                        (- 4946790180033 / 2199023255552),
-                       ALG [:11821609800, 22461058620, - 4171407240,
-                             - 45938678170, - 54212099480, - 31842714428,
-                             - 10317027768, - 1758662439, - 144537452,
-                             - 5263834, - 46204, 35:]
-                        (- 8507541941065 / 4398046511104)
-                        (- 1063442742633 / 549755813888),
-                       ALG [:90935460, 81290790, - 125595120, - 237512625,
-                             - 161529144, - 51834563, - 6846880, - 356071,
-                             - 2828, 5:]
-                        (- 2092418221909 / 1099511627776)
-                        (- 8369672887635 / 4398046511104),
-                       ALG [:9609600, 45805760, 92372280, 102560612,
-                             68338600, 27930066, 6857016, 938908, 58568,
-                             753:]
-                        (- 3745351061393 / 2199023255552)
-                        (- 7490702122785 / 4398046511104),
-                       ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-                             198324, 9656, 35:]
-                        (- 6709098186489 / 4398046511104)
-                        (- 838637273311 / 549755813888),
-                       ALG [:788107320, 1101329460, - 782617220,
-                             - 2625491260, - 2362290448, - 1063536663,
-                             - 240283734, - 24397102, - 1061504, - 9179,
-                             10:]
-                        (- 3198968792683 / 2199023255552)
-                        (- 1599484396341 / 1099511627776),
-                       ALG [:11821609800, 22461058620, - 4171407240,
-                             - 45938678170, - 54212099480, - 31842714428,
-                             - 10317027768, - 1758662439, - 144537452,
-                             - 5263834, - 46204, 35:]
-                        (- 5662162575307 / 4398046511104)
-                        (- 2831081287653 / 2199023255552),
-                       ALG [:73920, 278880, 424284, 332962, 142928, 32711,
-                             3514, 98:]
-                        (- 2684462227745 / 2199023255552)
-                        (- 83889444617 / 68719476736),
-                       ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-                             198324, 9656, 35:]
-                        (- 2622039237341 / 2199023255552)
-                        (- 5244078474681 / 4398046511104),
-                       ALG [:90935460, 81290790, - 125595120, - 237512625,
-                             - 161529144, - 51834563, - 6846880, - 356071,
-                             - 2828, 5:]
-                        (- 4984539914289 / 4398046511104)
-                        (- 9969079828577 / 8796093022208),
-                       ALG [:640640, 2735040, 4837448, 4581220, 2505504,
-                             794964, 138652, 11237, 207:]
-                        (- 4874738978211 / 4398046511104)
-                        (- 9749477956421 / 8796093022208),
-                       ALG [:788107320, 1101329460, - 782617220,
-                             - 2625491260, - 2362290448, - 1063536663,
-                             - 240283734, - 24397102, - 1061504, - 9179,
-                             10:]
-                        (- 9537374415943 / 8796093022208)
-                        (- 4768687207971 / 4398046511104),
-                       ALG [:9609600, 45805760, 92372280, 102560612,
-                             68338600, 27930066, 6857016, 938908, 58568,
-                             753:]
-                        (- 9412687822313 / 8796093022208)
-                        (- 9412687822311 / 8796093022208),
-                       ALG [:11821609800, 22461058620, - 4171407240,
-                             - 45938678170, - 54212099480, - 31842714428,
-                             - 10317027768, - 1758662439, - 144537452,
-                             - 5263834, - 46204, 35:]
-                        (- 2327300216149 / 2199023255552)
-                        (- 9309200864595 / 8796093022208),
-                       ALG [:- 73920, - 238560, - 303324, - 192458, - 63520,
-                             - 10261, - 608, 5:]
-                        (- 9171860959437 / 8796093022208)
-                        (- 9171860959435 / 8796093022208),
-                       ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-                             198324, 9656, 35:]
-                        (- 4575639814519 / 4398046511104)
-                        (- 9151279629037 / 8796093022208),
-                       RAT (- 1),
-                       ALG [:9609600, 45805760, 92372280, 102560612,
-                             68338600, 27930066, 6857016, 938908, 58568,
-                             753:]
-                        (- 68426595789 / 68719476736)
-                        (- 4379302130495 / 4398046511104),
-                       ALG [:640640, 2735040, 4837448, 4581220, 2505504,
-                             794964, 138652, 11237, 207:]
-                        (- 1093559932491 / 1099511627776)
-                        (- 4374239729963 / 4398046511104),
-                       ALG [:73920, 278880, 424284, 332962, 142928, 32711,
-                             3514, 98:]
-                        (- 8732465080027 / 8796093022208)
-                        (- 4366232540013 / 4398046511104),
-                       RAT 0,
-                       ALG [:11821609800, 22461058620, - 4171407240,
-                             - 45938678170, - 54212099480, - 31842714428,
-                             - 10317027768, - 1758662439, - 144537452,
-                             - 5263834, - 46204, 35:]
-                        (2785263117615 / 4398046511104)
-                        (174078944851 / 274877906944),
-                       ALG [:788107320, 1101329460, - 782617220,
-                             - 2625491260, - 2362290448, - 1063536663,
-                             - 240283734, - 24397102, - 1061504, - 9179,
-                             10:]
-                        (174078944865 / 274877906944)
-                        (5570526235681 / 8796093022208),
-                       ALG [:90935460, 81290790, - 125595120, - 237512625,
-                             - 161529144, - 51834563, - 6846880, - 356071,
-                             - 2828, 5:]
-                        (2785263133073 / 4398046511104)
-                        (5570526266147 / 8796093022208),
-                       ALG [:- 73920, - 238560, - 303324, - 192458, - 63520,
-                             - 10261, - 608, 5:]
-                        (603599397717741 / 4398046511104)
-                        (301799698858871 / 2199023255552),
-                       ALG [:90935460, 81290790, - 125595120, - 237512625,
-                             - 161529144, - 51834563, - 6846880, - 356071,
-                             - 2828, 5:]
-                        (2965443340708421 / 4398046511104)
-                        (5930886681416843 / 8796093022208),
-                       ALG [:788107320, 1101329460, - 782617220,
-                             - 2625491260, - 2362290448, - 1063536663,
-                             - 240283734, - 24397102, - 1061504, - 9179,
-                             10:]
-                        (9006496618758417 / 8796093022208)
-                        (4503248309379209 / 4398046511104),
-                       ALG [:11821609800, 22461058620, - 4171407240,
-                             - 45938678170, - 54212099480, - 31842714428,
-                             - 10317027768, - 1758662439, - 144537452,
-                             - 5263834, - 46204, 35:]
-                        (3139134067201133 / 2199023255552)
-                        (6278268134402267 / 4398046511104)]
-
-
-"}))] @{thm allQ_intro_code})]
-    1\<close>
+lemma "\<exists>x::real. x^2= 2"
+  by (univ_rcf_cert "[ALG [:- 2, 0, 1:] (- 725, - 9) (- 181, - 7)]")
 *)
 
 (*
-value "rat_to_alg  (- 34937541621241 / 137438953472)"
-value "rat_to_alg (- 279500332969927 / 1099511627776)"
-
-value "real_of_float (Float 4 (-1))"
-
-  ML_val \<open>
-
-@{cterm "
-
-[ALG [:1801800, 5825820, 7327320, 4508350, 1395240,
-    198324, 9656, 35:]
-                        (- 34937541621241 / 137438953472)
-                        (- 279500332969927 / 1099511627776)]
-
-
-"}
-
-\<close>
-
 lemma example_2:
     "\<forall>x::real. (x^2/2  - 1) \<ge>0 \<or> x + 2 > 0 "
   apply (tactic \<open>
@@ -1431,7 +1118,9 @@ lemma example_2:
   apply (tactic \<open>
     resolve0_tac [(infer_instantiate' @{context}
         [NONE,NONE,SOME (Thm.cterm_of @{context} (@{term alg_rat_list_conv} 
-        $ @{term "[RAT (-2),ALG [:-2,0,1:] (-3/2) (-1), ALG [:-2,0,1:] 1 2]"}))] @{thm allQ_intro_code})]
+        $ @{term "[ALG [:2, 1:] (- 1, 1) (- 1, 1),
+                       ALG [:- 2, 0, 1:] (- 725, - 9) (- 181, - 7),
+                       ALG [:- 2, 0, 1:] (45, - 5) (91, - 6)]"}))] @{thm allQ_intro_code})]
     1\<close>)
    apply simp
    apply (tactic \<open>
@@ -1439,17 +1128,6 @@ lemma example_2:
   THEN 
     resolve0_tac [TrueI] 1\<close>)
   done
+*)  
 
-
-ML_val \<open>
-OS.Process.getEnv "MATH_KERNEL";
-OS.Process.getEnv "ISABELLE_HOME";
-OS.Process.getEnv "USER_HOME";
-OS.Process.getEnv "ML_HOME";
-OS.Process.getEnv "USER_HOME";
-OS.Process.getEnv "USER_HOME";
-\<close>
-
-*)
-  
 end

@@ -13,6 +13,10 @@ end
 structure Univ_RCF: UNIV_RCF =
 struct
 
+(*Directory path to Mathematica scripts*)
+val math_dir_path = Resources.master_directory 
+              (Proof_Context.theory_of @{context})|> File.platform_path;
+
 (*
 val holds = Code_Runtime.static_holds_conv {ctxt = @{context},
     consts = [           
@@ -162,16 +166,16 @@ fun runMathematica extential ctxt formula =
         val qf_str= (case formula of 
             (Const ("Univ_RCF_Reification.norm_form2.ExQ", _) 
               $ (Const ("Univ_RCF_Reification.norm_form2.QF", _) $ t)) => qf_form_to_str t);
-        val cmd="getInstance["^qf_str^"]//FullForm";
+        val cmd="getInstanceNew["^qf_str^"]//FullForm";
         val _ = writeln ("Command to Mathematica: "^cmd );
-        val result = execute_MathKernel_print cmd;
+        val result = execute_MathKernel_print math_dir_path cmd;
         val _ = writeln ("Mathematica returns: "^result );
       in Syntax.read_term ctxt result end
     else 
-      let val cmd = "isolateRoots[{"^(String.concatWith "," (map poly_to_str (extract_polys formula)))
+      let val cmd = "isolateRootsNew[{"^(String.concatWith "," (map poly_to_str (extract_polys formula)))
                       ^"}]//FullForm";
           val _ = writeln ("Command to Mathematica: "^cmd );
-          val result = execute_MathKernel_print cmd;
+          val result = execute_MathKernel_print math_dir_path cmd;
       in Syntax.read_term ctxt result end);
 
 
@@ -209,7 +213,7 @@ fun existential_case_tac ctxt pt =
   THEN 
     CONVERSION (rcf_holds ctxt) 1 
   THEN 
-    let val _ = writeln "ccc" in
+    let (*val _ = writeln "ccc"*) in
     resolve0_tac [TrueI] 1 end;
 
 fun universal_case_tac ctxt roots = 
@@ -225,8 +229,10 @@ fun universal_case_tac ctxt roots =
       in the future.*)
     Local_Defs.unfold_tac ctxt [@{thm Let_def}] 
     *)
+
    THEN 
       (CONVERSION (rcf_holds ctxt) THEN' (resolve0_tac [TrueI])) 1 
+
     ;
 
 fun univ_rcf_cert ctxt (cert:term) =
@@ -246,7 +252,7 @@ fun univ_rcf_cert ctxt (cert:term) =
                 |> Thm.term_of
                 |> Syntax.string_of_term ctxt |> writeln;
              *)
-             val _ = @{print} ctrm
+             (*val _ = @{print} ctrm*)
           in
         (case (ctrm |> Thm.dest_arg |> Thm.dest_arg1 |> Thm.term_of) of
           Const ("Univ_RCF_Reification.norm_form2.ExQ",_) $ _ => existential_case_tac ctxt cert'  
