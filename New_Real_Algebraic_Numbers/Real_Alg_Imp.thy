@@ -1,17 +1,12 @@
 theory Real_Alg_Imp imports 
   Complex_Main
   "../Sturm_Tarski/Pseudo_Remainder_Sequence"
-  
+  "Polynomial_Interpolation.Ring_Hom_Poly"
+  "../Budan_Fourier/Descartes_Roots_Test"
   Float_Misc
 begin
 
-find_theorems name:interme
-
-find_theorems name:IVT
-
-
 section \<open>Cauchy sequences for the reals\<close>
-
 
 abbreviation "Real \<equiv> Real.Real"
 abbreviation "cauchy \<equiv> Real.cauchy"
@@ -289,14 +284,36 @@ qed
 
 section \<open>Validity checks for representations of real algebraic numbers\<close>
 
-definition one_root_btw::"real poly \<Rightarrow> real \<Rightarrow> real \<Rightarrow> bool" where
-  "one_root_btw p lb ub = (card {x. poly p x=0 \<and> lb<x \<and> x<ub} = 1)"
+(*
+definition one_root_btw::"int poly \<Rightarrow> float \<Rightarrow> float \<Rightarrow> bool" where
+  "one_root_btw p lb ub = (card {x. poly (map_poly real_of_int p) x=0 \<and> lb<x \<and> x<ub} = 1)"
+*)
 
+definition one_root_test::"int poly \<Rightarrow> float \<Rightarrow> float \<Rightarrow> bool" where
+  "one_root_test p lb ub = (descartes_roots_test lb ub (map_poly real_of_int p) = 1)"
 
+term descartes_roots_test
+
+(*
 definition valid_alg::"int poly \<Rightarrow> float \<Rightarrow> float \<Rightarrow> bool" where
   "valid_alg p lb ub = (lb<ub \<and> poly (of_int_poly p) lb * poly (of_int_poly p) ub <0 
     \<and> one_root_btw (map_poly of_int p) lb ub)"
+*)
 
+definition valid_alg::"int poly \<Rightarrow> float \<Rightarrow> float \<Rightarrow> bool" where
+  "valid_alg p lb ub = (lb<ub \<and> poly (of_int_poly p) lb 
+      * poly (of_int_poly p) ub <0 
+    \<and> one_root_test p lb ub)"
+
+lemma valid_alg_code[code]: 
+  "valid_alg p lb ub = (lb<ub \<and> sgn (eval_poly of_int p lb) 
+      * sgn (eval_poly of_int p ub) <0 \<and> one_root_test p lb ub)"
+proof -
+  have "poly (of_int_poly p) lb * poly (of_int_poly p) ub <0  
+        \<longleftrightarrow> sgn (eval_poly of_int p lb) * sgn (eval_poly of_int p ub) <0"
+    unfolding eval_poly_def by (metis sgn_less sgn_mult)
+  then show ?thesis unfolding valid_alg_def by auto
+qed
 
 global_interpretation float_int:hom_pseudo_smods float_of_int real_of_int real_of_float
   defines 
@@ -313,13 +330,6 @@ global_interpretation rat_float:hom_pseudo_smods rat_of_float real_of_float real
   apply unfold_locales
   by (simp_all add: of_rat_less of_rat_less_eq rat_of_float_add rat_of_float_mult)
   
-
-lemma [code]:"valid_alg p lb ub = (lb<ub 
-        \<and> (sgn(poly (of_int_poly p) lb) * sgn(poly (of_int_poly p) ub) <0) 
-        \<and> fi_changes_itv_spmods lb ub p (pderiv p) =1)"
-  sorry
-
-
 section \<open>Representation of a real algebraic number\<close>
 
 definition Alg:: "int poly \<Rightarrow> float \<Rightarrow> float \<Rightarrow> real" where
@@ -335,8 +345,8 @@ proof -
   let ?p = "of_int_poly p" 
   have less:"rat_of_float lb<rat_of_float ub" 
       and "poly ?p lb * poly ?p ub<0" 
-      and "one_root_btw ?p lb ub" 
-    using assms unfolding valid_alg_def 
+      and "one_root_test p lb ub" 
+    using assms unfolding valid_alg_def eval_poly_def
     apply auto
     by (metis rat_float.R_hom rat_float.r2.hom_less)
   define x where "x\<equiv>Alg p lb ub"
@@ -366,6 +376,38 @@ qed
 lemma card_1_imp_eq:"card S=1 \<Longrightarrow> x\<in>S \<Longrightarrow> y\<in>S \<Longrightarrow> x=y" 
   by (metis One_nat_def card_eq_SucD singletonD)
 
+lemma card_eq_count_leq_1:
+  assumes "p\<noteq>0" "proots_count p s \<le> 1"
+  shows "card (proots_within p s) = proots_count p s"
+proof -
+  have "card (proots_within p s) \<le> 1"
+    using card_proots_within_leq[OF \<open>p\<noteq>0\<close>,of s] \<open>proots_count p s \<le> 1\<close>
+    by auto
+  then have "card (proots_within p s) = 0 \<or> card (proots_within p s) = 1"
+    by auto
+  moreover have ?thesis if "card (proots_within p s) = 0"
+  proof -
+    have "proots_within p s = {}"
+      using that by (meson assms(1) card_0_eq finite_proots)
+    then show ?thesis unfolding proots_count_def by auto
+  qed
+  moreover have ?thesis if "card (proots_within p s) = 1"
+  proof -
+    obtain a where "proots_within p s = {a}"
+      using \<open>card (proots_within p s) = 1\<close> card_1_singletonE by blast
+    then have "order a p = proots_count p s"
+      unfolding proots_count_def by auto
+    then have "order a p \<le> 1" using \<open>proots_count p s \<le> 1\<close> by auto
+    moreover have "order a p\<noteq>0"
+      using \<open>proots_within p s = {a}\<close> order_root \<open>p\<noteq>0\<close> unfolding proots_within_def
+      by auto
+    ultimately have "order a p=1" by auto
+    then have "proots_count p s = 1"
+      using \<open>order a p = proots_count p s\<close> by auto
+    with that show ?thesis by auto
+  qed
+  ultimately show ?thesis by auto
+qed
 
 lemma alg_eq:
   assumes valid:"valid_alg p lb ub" and "poly (of_int_poly p) x = 0" and "x>lb" and "x<ub"
@@ -373,7 +415,27 @@ lemma alg_eq:
 proof -
   define S where "S={x::real. poly (of_int_poly p) x = 0 \<and> lb < x \<and> x < ub}"
   have "card S  = 1" 
-    using valid unfolding valid_alg_def S_def one_root_btw_def by simp
+  proof -
+    define ll uu pp where "ll=real_of_float lb" and "uu = real_of_float ub" 
+                      and "pp=map_poly real_of_int p" 
+    have "descartes_roots_test ll uu pp = 1" and "ll < uu" and "pp\<noteq>0"
+      using valid unfolding valid_alg_def one_root_test_def ll_def uu_def pp_def 
+      by auto
+    then have "proots_count pp {x. ll < x \<and> x < uu} = 1"
+      using descartes_roots_test_one by auto
+    then have "card (proots_within pp {x. ll < x \<and> x <  uu})
+                  = proots_count pp {x. ll < x \<and> x < uu}"
+      using card_eq_count_leq_1[OF \<open>pp\<noteq>0\<close>] by auto
+    also have "... = 1"
+      using descartes_roots_test_one[OF \<open>pp\<noteq>0\<close> \<open>ll < uu\<close>] 
+            \<open>descartes_roots_test ll uu pp = 1\<close>
+      by auto
+    finally have "card (proots_within pp {x. ll < x \<and> x < uu}) = 1" . 
+    moreover have "proots_within pp {x. ll < x \<and> x < uu} = S"
+      unfolding S_def pp_def ll_def uu_def proots_within_def 
+      by auto
+    ultimately show ?thesis by auto
+  qed
   moreover have "x\<in>S" 
     using assms unfolding S_def by auto
   moreover have "Alg p lb ub\<in> S" 
@@ -393,7 +455,8 @@ next
   proof -
     obtain c where "p=[:c:]" "c\<noteq>0" using False 
       by (metis \<open>degree p = 0\<close> degree_eq_zeroE pCons_0_0)
-    thus False using valid by (auto simp add:valid_alg_def)  
+    thus False using valid 
+      using alg_bound_and_root(3) by fastforce
   qed
   thus ?thesis by auto
 qed
@@ -402,17 +465,6 @@ datatype alg_imp =
      Floatalg float
    | Ratalg rat float float
    | Polyalg "int poly" float float  
-
-(*
-datatype A = A1 int | A2 rat
-datatype B = A | B1 real
-
-term B1
-
-fun f::"B \<Rightarrow> int" where
-  "f (B1 a) = 1"
-| "f ((A1 _)::B) = 0"
-*)
 
 fun real_of_alg_imp :: "alg_imp \<Rightarrow> real" where
   "real_of_alg_imp (Ratalg r _ _) = (Ratreal r)"|
