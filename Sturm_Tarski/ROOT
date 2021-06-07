@@ -4,6 +4,8 @@ session Sturm_Tarski (AFP) = "HOL-Computational_Algebra" +
   options [timeout = 600]
   theories
     Sturm_Tarski
+    Pseudo_Remainder_Sequence
+    Tarski_Query_Impl
   document_files
     "root.tex"
     "root.bib"

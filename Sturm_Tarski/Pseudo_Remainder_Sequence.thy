@@ -250,7 +250,7 @@ apply (induct p)
 using r2.hom_add r2.hom_mult R_hom by auto
 
 definition changes_hpoly_at::"'a poly list \<Rightarrow> 'b \<Rightarrow> int" where
-  "changes_hpoly_at ps a= changes (map (\<lambda>p. eval_poly hom p a) ps)" 
+  "changes_hpoly_at ps a= changes (map (\<lambda>p. sgn(eval_poly hom p a)) ps)" 
 
 lemma changes_hpoly_at_Nil[simp]: "changes_hpoly_at [] a = 0"
   unfolding changes_hpoly_at_def by simp
@@ -322,7 +322,7 @@ proof -
       then show ?thesis
         unfolding changes_hpoly_at_def
         apply (subst (2) changes_map_sign_eq)
-        by simp
+        by (simp add:comp_def)
     qed
     finally show ?thesis .
   qed
