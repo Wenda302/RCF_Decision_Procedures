@@ -1,0 +1,30 @@
+getInstanceNew
+getInstanceNew[fm_] := With[{xs = x /. FindInstance[fm, {x}], 
+      widths = {0.5}}, (processRoots[#1[[1]], #1[[2]]] & ) /@ 
+      Transpose[{xs, widths}]]
+ 
+processRoots[root_, w_] := Module[{nr = N[root], width = w}, 
+     width = If[nr < 0 && nr + w > 0, -nr, If[nr > 0 && nr - w < 0, nr, 
+         width]]; If[Element[root, Rationals], {MinimalPolynomial[root], 
+        ratBound[root, width]}, Module[{itv, lb, ub}, 
+        itv = IsolatingInterval[root, width]; ub = getUpperDyadic[root, 
+           itv[[2]]]; lb = getLowerDyadic[itv[[1]], root]; 
+         {MinimalPolynomial[root], {lb, ub}}]]]
+ 
+ratBound[r_, d_] := If[r == 0, {{0, 0}, {0, 0}}, 
+     With[{n = 2^Ceiling[Log[2, 1/d]]}, {toDyadic[Floor[n*r]/n], 
+       toDyadic[Ceiling[n*r]/n]}]]
+ 
+toDyadic[x_] := If[MatchQ[x, _Integer], With[{exp = IntegerExponent[x, 2]}, 
+      {x/2^exp, exp}], With[{x1 = Numerator[x], x2 = Denominator[x], 
+       x3 = Log[2, Denominator[x]]}, {x1, -x3}]]
+ 
+getUpperDyadic[r_, x_] := If[MatchQ[x, _Integer] || 
+      (MatchQ[x, Rational[_, _]] && MatchQ[Log[2, Denominator[x]], 
+        _Integer]), toDyadic[x], Module[{p = Ceiling[Log[2, 1/N[x - r]]], n}, 
+      n = 2^p; {Ceiling[n*r], -p}]]
+ 
+getLowerDyadic[x_, r_] := If[MatchQ[x, _Integer] || 
+      (MatchQ[x, Rational[_, _]] && MatchQ[Log[2, Denominator[x]], 
+        _Integer]), toDyadic[x], Module[{p = Ceiling[Log[2, 1/N[r - x]]], n}, 
+      n = 2^p; {Floor[n*r], -p}]]
