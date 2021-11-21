@@ -1,7 +1,7 @@
 # RCF_Decision_Procedures
 (Univariate) decision procedures in Isabelle/HOL based on Cylindrical Algebraic Decomposition
 
-Compatible with Isabelle2020.
+Compatible with Isabelle2021.
 
 Examples are in [Univ_RCF/Univ_RCF_Example.thy](Univ_RCF/Univ_RCF_Example.thy).
 

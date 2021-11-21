@@ -5,7 +5,7 @@
 theory RCF_Decision_Proc
 imports 
    Univ_RCF_Reification
-  "../New_Real_Algebraic_Numbers/Univariate_Sign_Determination"
+  "../Real_Algebraic_Numbers/Univariate_Sign_Determination"
 begin
 
 
